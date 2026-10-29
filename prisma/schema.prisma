@@ -9,58 +9,42 @@ datasource db {
 
 // Dados mínimos do titular (LGPD art. 6º, III): só o necessário para login e publicação.
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime?
-  name          String?
-  image         String?
-  voiceTone     String    @default("")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  // `sub` do OIDC do LinkedIn; o autor dos posts é urn:li:person:<linkedinSub>.
+  linkedinSub String   @unique
+  voiceTone   String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  accounts   Account[]
-  sessions   Session[]
-  posts      Post[]
-  accessLogs AccessLog[]
+  linkedinAccount LinkedInAccount?
+  sessions        Session[]
+  posts           Post[]
+  accessLogs      AccessLog[]
 }
 
-// Tabela do Auth.js. access_token é gravado criptografado (AES-256-GCM, ver src/lib/crypto.ts).
-model Account {
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+// O access token é gravado criptografado (AES-256-GCM, ver src/lib/crypto.ts).
+model LinkedInAccount {
+  userId      String   @id
+  accessToken String
+  expiresAt   DateTime
+  scope       String
+  updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([provider, providerAccountId])
 }
 
+// O cookie guarda um token aleatório; aqui fica só o hash SHA-256 dele.
 model Session {
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
 
-model VerificationToken {
-  identifier String
-  token      String
-  expires    DateTime
-
-  @@id([identifier, token])
+  @@index([userId])
 }
 
 enum PostStatus {
