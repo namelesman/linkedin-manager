@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { approvePost, deletePost, unapprovePost } from "@/app/actions/posts";
+import { approvePost, deletePost, publishNow, unapprovePost } from "@/app/actions/posts";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
-import { canApprove, canDelete, canEdit } from "@/lib/post-status";
+import { canApprove, canDelete, canEdit, canPublish } from "@/lib/post-status";
 import { PostEditor } from "./post-editor";
+import { ImageManager } from "./image-manager";
 
-// Regenerar o texto chama a Claude API.
+// Regenerar chama a Claude API e publicar envia imagens ao LinkedIn.
 export const maxDuration = 60;
 
 const button =
@@ -16,8 +17,15 @@ const button =
 export default async function PostPage({ params }: PageProps<"/posts/[id]">) {
   const { id } = await params;
   const user = await requireUser();
-  const post = await db.post.findFirst({ where: { id, userId: user.id } });
+  const post = await db.post.findFirst({
+    where: { id, userId: user.id },
+    include: { images: { orderBy: { position: "asc" }, select: { id: true, altText: true } } },
+  });
   if (!post) notFound();
+  // Sem carregar os bytes: só precisamos saber se ainda existem para o preview.
+  const withData = new Set(
+    (await db.postImage.findMany({ where: { postId: post.id, NOT: { data: null } }, select: { id: true } })).map((i) => i.id),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,10 +48,29 @@ export default async function PostPage({ params }: PageProps<"/posts/[id]">) {
 
       <PostEditor key={post.updatedAt.toISOString()} id={post.id} text={post.text} editable={canEdit(post.status)} />
 
+      <ImageManager
+        postId={post.id}
+        editable={canEdit(post.status)}
+        images={post.images.map((i) => ({ id: i.id, altText: i.altText, hasData: withData.has(i.id) }))}
+      />
+
+      {post.linkedinUrl && (
+        <a href={post.linkedinUrl} target="_blank" rel="noreferrer" className="text-sm text-[#0a66c2] underline">
+          Ver no LinkedIn
+        </a>
+      )}
+
       <div className="flex flex-wrap gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800">
         {canApprove(post.status) && (
           <form action={approvePost.bind(null, post.id)}>
             <button type="submit" className={button}>Aprovar</button>
+          </form>
+        )}
+        {canPublish(post.status) && (
+          <form action={publishNow.bind(null, post.id)}>
+            <button type="submit" className="rounded bg-[#0a66c2] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#004182]">
+              Publicar agora
+            </button>
           </form>
         )}
         {(post.status === "APPROVED" || post.status === "SCHEDULED") && (

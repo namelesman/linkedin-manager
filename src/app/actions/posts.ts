@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { DraftError, generateDraft } from "@/lib/ai";
 import { LINKEDIN_MAX_CHARS } from "@/lib/limits";
-import { canApprove, canDelete, canEdit } from "@/lib/post-status";
+import { canApprove, canDelete, canEdit, canPublish } from "@/lib/post-status";
+import { publishPost } from "@/lib/publisher";
 import type { FormState } from "./settings";
 
 export async function createDraft(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -99,4 +100,12 @@ export async function deletePost(id: string) {
 
   await db.post.delete({ where: { id } });
   redirect("/");
+}
+
+export async function publishNow(id: string) {
+  const { post } = await getOwnPost(id);
+  if (!canPublish(post.status)) return;
+
+  await publishPost(id, "APPROVED");
+  revalidatePath(`/posts/${id}`);
 }
