@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { DraftError, generateDraft } from "@/lib/ai";
 import { LINKEDIN_MAX_CHARS } from "@/lib/limits";
-import { canApprove, canDelete, canEdit, canPublish } from "@/lib/post-status";
+import { canApprove, canDelete, canEdit, canPublish, canSchedule } from "@/lib/post-status";
+import { MIN_LEAD_MS, parseLocalDateTime } from "@/lib/schedule";
 import { publishPost } from "@/lib/publisher";
 import type { FormState } from "./settings";
 
@@ -107,5 +108,30 @@ export async function publishNow(id: string) {
   if (!canPublish(post.status)) return;
 
   await publishPost(id, "APPROVED");
+  revalidatePath(`/posts/${id}`);
+}
+
+export async function schedulePost(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const { post } = await getOwnPost(id);
+  if (!canSchedule(post.status)) return { error: "Aprove o post antes de agendar." };
+
+  const scheduledAt = parseLocalDateTime(String(formData.get("scheduledAt") ?? ""));
+  if (!scheduledAt) return { error: "Data e hora inválidas." };
+  if (scheduledAt.getTime() < Date.now() + MIN_LEAD_MS) return { error: "Escolha um horário no futuro." };
+
+  const { count } = await db.post.updateMany({
+    where: { id, status: post.status },
+    data: { status: "SCHEDULED", scheduledAt },
+  });
+  if (count === 0) return { error: "O post mudou de estado. Recarregue a página." };
+  revalidatePath(`/posts/${id}`);
+  return { ok: true };
+}
+
+export async function unschedulePost(id: string) {
+  const { post } = await getOwnPost(id);
+  if (post.status !== "SCHEDULED") return;
+
+  await db.post.updateMany({ where: { id, status: "SCHEDULED" }, data: { status: "APPROVED", scheduledAt: null } });
   revalidatePath(`/posts/${id}`);
 }

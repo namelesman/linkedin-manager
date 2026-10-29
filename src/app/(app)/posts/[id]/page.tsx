@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { approvePost, deletePost, publishNow, unapprovePost } from "@/app/actions/posts";
+import { approvePost, deletePost, publishNow, unapprovePost, unschedulePost } from "@/app/actions/posts";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
-import { canApprove, canDelete, canEdit, canPublish } from "@/lib/post-status";
+import { canApprove, canDelete, canEdit, canPublish, canSchedule } from "@/lib/post-status";
+import { toLocalInputValue } from "@/lib/schedule";
 import { PostEditor } from "./post-editor";
 import { ImageManager } from "./image-manager";
+import { ScheduleForm } from "./schedule-form";
 
 // Regenerar chama a Claude API e publicar envia imagens ao LinkedIn.
 export const maxDuration = 60;
@@ -58,6 +60,19 @@ export default async function PostPage({ params }: PageProps<"/posts/[id]">) {
         <a href={post.linkedinUrl} target="_blank" rel="noreferrer" className="text-sm text-[#0a66c2] underline">
           Ver no LinkedIn
         </a>
+      )}
+
+      {post.status === "SCHEDULED" && post.scheduledAt && (
+        <div className="flex flex-wrap items-center gap-3 rounded bg-violet-50 px-3 py-2 text-sm dark:bg-violet-950">
+          Agendado para {formatDateTime(post.scheduledAt)} (Brasília).
+          <form action={unschedulePost.bind(null, post.id)}>
+            <button type="submit" className="underline">Cancelar agendamento</button>
+          </form>
+        </div>
+      )}
+
+      {canSchedule(post.status) && (
+        <ScheduleForm id={post.id} initial={post.scheduledAt ? toLocalInputValue(post.scheduledAt) : undefined} />
       )}
 
       <div className="flex flex-wrap gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800">
