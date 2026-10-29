@@ -1,8 +1,8 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { LINKEDIN_MAX_CHARS } from "@/lib/limits";
 
 const MODEL = "claude-sonnet-5-5";
-export const LINKEDIN_MAX_CHARS = 3000;
 
 const client = new Anthropic();
 
