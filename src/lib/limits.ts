@@ -1,1 +1,2 @@
 export const LINKEDIN_MAX_CHARS = 3000;
+export const DELETE_CONFIRM_WORD = "APAGAR";

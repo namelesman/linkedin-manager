@@ -8,6 +8,7 @@ export const maxDuration = 60;
 
 // Poucos por execução para caber no tempo da função; o resto sai na próxima rodada.
 const BATCH = 5;
+const ACCESS_LOG_RETENTION_MS = 183 * 24 * 60 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
   if (!isValidCronAuth(req.headers.get("authorization"))) {
@@ -28,5 +29,12 @@ export async function GET(req: NextRequest) {
     results[id] = await publishPost(id, "SCHEDULED");
   }
 
-  return NextResponse.json({ stuck, results });
+  // Retenção: registros de acesso por 6 meses e sessões só até expirarem.
+  const now = Date.now();
+  const [logs, sessions] = await Promise.all([
+    db.accessLog.deleteMany({ where: { at: { lt: new Date(now - ACCESS_LOG_RETENTION_MS) } } }),
+    db.session.deleteMany({ where: { expiresAt: { lt: new Date(now) } } }),
+  ]);
+
+  return NextResponse.json({ stuck, results, purged: { accessLogs: logs.count, sessions: sessions.count } });
 }

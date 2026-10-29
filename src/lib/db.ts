@@ -9,7 +9,8 @@ function createClient() {
   // Neon em produção (driver serverless); Postgres comum em dev e nos testes.
   const adapter = new URL(connectionString).hostname.endsWith(".neon.tech")
     ? new PrismaNeon({ connectionString })
-    : new PrismaPg({ connectionString });
+    : // `prisma dev` aceita uma conexão por vez: use DATABASE_POOL_MAX=1 com ele.
+      new PrismaPg({ connectionString, max: Number(process.env.DATABASE_POOL_MAX) || undefined });
   return new PrismaClient({ adapter });
 }
 

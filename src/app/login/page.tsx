@@ -6,6 +6,7 @@ const ERRORS: Record<string, string> = {
   estado: "Sessão de login inválida ou expirada. Tente de novo.",
   linkedin: "Não foi possível falar com o LinkedIn. Tente de novo.",
   "nao-autorizado": "Esta conta não tem acesso a este painel.",
+  "conta-apagada": "Conta e dados apagados.",
 };
 
 async function ErrorMessage({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {

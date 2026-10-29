@@ -3,5 +3,6 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  test: { include: ["src/**/*.test.ts"] },
+  // Os testes de integração compartilham o mesmo banco: um arquivo por vez.
+  test: { include: ["src/**/*.test.ts"], fileParallelism: false },
 });
