@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Dados mínimos do titular (LGPD art. 6º, III): só o necessário para login e publicação.
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  voiceTone     String    @default("")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts   Account[]
+  sessions   Session[]
+  posts      Post[]
+  accessLogs AccessLog[]
+}
+
+// Tabela do Auth.js. access_token é gravado criptografado (AES-256-GCM, ver src/lib/crypto.ts).
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+enum PostStatus {
+  DRAFT
+  APPROVED
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  ERROR
+}
+
+model Post {
+  id          String     @id @default(cuid())
+  userId      String
+  briefing    String     @default("")
+  text        String     @default("")
+  status      PostStatus @default(DRAFT)
+  scheduledAt DateTime?
+  approvedAt  DateTime?
+  publishedAt DateTime?
+  // Marca o início da tentativa de publicação; usado para detectar posts presos em PUBLISHING.
+  claimedAt   DateTime?
+  linkedinUrn String?
+  linkedinUrl String?
+  error       String?
+  attempts    Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images PostImage[]
+
+  @@index([status, scheduledAt])
+  @@index([userId, createdAt])
+}
+
+// Os bytes ficam só até a publicação; depois disso guardamos apenas o URN do LinkedIn.
+model PostImage {
+  id        String   @id @default(cuid())
+  postId    String
+  position  Int
+  mimeType  String
+  altText   String   @default("")
+  data      Bytes?
+  imageUrn  String?
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, position])
+}
+
+// Registro mínimo de acesso (IP + data/hora), apagado automaticamente após 6 meses.
+model AccessLog {
+  id     String   @id @default(cuid())
+  userId String
+  ip     String
+  at     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([at])
+}
